@@ -16,17 +16,49 @@ class EntradaDiaria(BaseModel):
     Humidity: float
     Light_Intensity: float
     Soil_pH: float
+    
+class ProjecaoCrescimento(BaseModel):
     meses_projecao: int
 
 class ConsultaMensal(BaseModel):
     mes: int
+    
+class DadosAtualizacao(BaseModel):
+    umidadeSolo: float
+    temperaturaAmbiente: float
+    temperaturaSolo: float
+    umidadeAmbiente: float
+    indiceUV: float
+    phSolo: float
+    
+def mapear_para_entrada_diaria(atualizacao: DadosAtualizacao) -> EntradaDiaria:
+    return EntradaDiaria(
+        Soil_Moisture=atualizacao.umidadeSolo,
+        Ambient_Temperature=atualizacao.temperaturaAmbiente,
+        Soil_Temperature=atualizacao.temperaturaSolo,
+        Humidity=atualizacao.umidadeAmbiente,
+        Light_Intensity=atualizacao.indiceUV,
+        Soil_pH=atualizacao.phSolo
+    )
 
-@app.post("/projetar_crescimento/v1")
-def projetar_crescimento(dados: EntradaDiaria):
+
+@app.post("/incluir-atualizacao")
+def status_mensal(atualizacao: DadosAtualizacao):
     try:
-        status_hoje = plant_service.prever_status(dados)
+        entrada_diaria = mapear_para_entrada_diaria(atualizacao)
+        status_hoje = plant_service.prever_status(entrada_diaria)
         plant_service.salvar_status(status_hoje)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.post("/projetar_crescimento/v1")
+def projetar_crescimento(dados: ProjecaoCrescimento):
+    try:
+        ultimos_status = plant_service.carregar_ultimos_status(n=1)
+        if not ultimos_status:
+            raise HTTPException(status_code=404, detail="Nenhum status encontrado no banco de dados.")
 
+        status_hoje = ultimos_status[0]
         crescimento_hoje = plant_service.crescimento_medio.get(status_hoje, "Desconhecido")
 
         ultimos_status = plant_service.carregar_ultimos_status(n=7)
