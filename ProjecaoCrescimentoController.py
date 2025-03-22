@@ -19,6 +19,7 @@ class EntradaDiaria(BaseModel):
     
 class ProjecaoCrescimento(BaseModel):
     meses_projecao: int
+    teto_gastos: int
 
 class ConsultaMensal(BaseModel):
     mes: int
@@ -70,10 +71,26 @@ def projetar_crescimento(dados: ProjecaoCrescimento):
 
         meses_nomes = [calendar.month_name[(datetime.utcnow().month + i) % 12 or 12] for i in range(dados.meses_projecao)]
 
+        gastos_projetados = []
+        total_gastos_acumulados = 0
+
+        for status in crescimento_futuro:
+            if status == "Alto":
+                gasto_mensal = 5
+            elif status == "Médio":
+                gasto_mensal = 10
+            else:
+                gasto_mensal = 15
+
+            total_gastos_acumulados += gasto_mensal 
+            gastos_projetados.append(total_gastos_acumulados)
+
         return {
             "status_atual": crescimento_hoje,
             "meses": meses_nomes,
-            "crescimento": crescimento_futuro
+            "crescimento": crescimento_futuro,
+            "gastos_projetados": gastos_projetados, 
+            "teto_gastos": dados.teto_gastos 
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
