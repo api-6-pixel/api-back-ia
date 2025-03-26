@@ -16,10 +16,12 @@ class EntradaDiaria(BaseModel):
     Humidity: float
     Light_Intensity: float
     Soil_pH: float
+    Fazenda_Nome: string
     
 class ProjecaoCrescimento(BaseModel):
     meses_projecao: int
     teto_gastos: int
+    fazenda_nome: string
 
 class ConsultaMensal(BaseModel):
     mes: int
@@ -31,6 +33,7 @@ class DadosAtualizacao(BaseModel):
     umidadeAmbiente: float
     indiceUV: float
     phSolo: float
+    fazendaNome: string
     
 def mapear_para_entrada_diaria(atualizacao: DadosAtualizacao) -> EntradaDiaria:
     return EntradaDiaria(
@@ -39,7 +42,8 @@ def mapear_para_entrada_diaria(atualizacao: DadosAtualizacao) -> EntradaDiaria:
         Soil_Temperature=atualizacao.temperaturaSolo,
         Humidity=atualizacao.umidadeAmbiente,
         Light_Intensity=atualizacao.indiceUV,
-        Soil_pH=atualizacao.phSolo
+        Soil_pH=atualizacao.phSolo,
+	Fazenda_Nome: atualizacao.fazendaNome
     )
 
 
@@ -48,7 +52,7 @@ def status_mensal(atualizacao: DadosAtualizacao):
     try:
         entrada_diaria = mapear_para_entrada_diaria(atualizacao)
         status_hoje = plant_service.prever_status(entrada_diaria)
-        plant_service.salvar_status(status_hoje)
+        plant_service.salvar_status(status_hoje, entrada_diaria)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
@@ -67,7 +71,7 @@ def projetar_crescimento(dados: ProjecaoCrescimento):
             crescimento_futuro = ["Indefinido"] * dados.meses_projecao
         else:
             tendencia = plant_service.calcular_tendencia(ultimos_status)
-            crescimento_futuro = plant_service.projetar_crescimento_mensal(tendencia, dados.meses_projecao)
+            crescimento_futuro = plant_service.projetar_crescimento_mensal(tendencia, dados.meses_projecao, dados.fazenda_nome)
 
         meses_nomes = [calendar.month_name[(datetime.utcnow().month + i) % 12 or 12] for i in range(dados.meses_projecao)]
 

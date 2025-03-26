@@ -22,10 +22,11 @@ class ProjecaoCrescimentoService:
         self.db = self.client.plantas_db
         self.historico_collection = self.db.historico
 
-    def salvar_status(self, status):
+    def salvar_status(self, status, entrada_diaria):
         self.historico_collection.insert_one({
             "status": status,
-            "data": datetime.utcnow()
+            "data": datetime.utcnow(),
+	    "fazendaNome": entrada_diaria.Fazenda_Nome
         })
 
     def carregar_ultimos_status(self, n=7):
@@ -37,7 +38,7 @@ class ProjecaoCrescimentoService:
         resultados = list(self.historico_collection.aggregate(pipeline))
         return [resultado['status'] for resultado in resultados]
 
-    def buscar_status_mensal(self, mes: int):
+    def buscar_status_mensal(self, mes: int, fazendaNome: string):
         ano = datetime.now().year
 
         data_inicio = datetime(ano, mes, 1)
@@ -50,6 +51,9 @@ class ProjecaoCrescimentoService:
             "data": {
                 "$gte": data_inicio,
                 "$lt": data_fim
+            },
+	    "fazendaNome": {
+            	"$eq": fazendaNome
             }
         })
 
