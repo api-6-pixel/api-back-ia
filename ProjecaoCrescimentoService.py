@@ -21,13 +21,33 @@ class ProjecaoCrescimentoService:
         self.client = MongoClient('mongodb://localhost:27017/')
         self.db = self.client.plantas_db
         self.historico_collection = self.db.historico
+        self.custo_plantacao_collection = self.db.custo_plantacao
 
-    def salvar_status(self, status, entrada_diaria):
+    def salvar_status(self, status, fazendaNome):
         self.historico_collection.insert_one({
             "status": status,
             "data": datetime.utcnow(),
-	    "fazendaNome": entrada_diaria.Fazenda_Nome
+	        "fazendaNome": fazendaNome
         })
+        
+    def salvar_custo(self, custo, fazendaNome):
+        if custo is None or custo == "":
+            print("O custo não pode ser nulo ou vazio")
+            return
+        
+        registro_existente = self.get_custo_fazenda(fazendaNome)
+        if registro_existente is not None:
+            print(f"Já existe um registro para a fazenda {fazendaNome}")
+            return
+        
+        self.custo_plantacao_collection.insert_one({
+            "custo": custo,
+            "data": datetime.utcnow(),
+	        "fazendaNome": fazendaNome
+        })
+        
+    def get_custo_fazenda(self, fazendaNome):
+        return self.custo_plantacao_collection.find_one({"fazendaNome": fazendaNome})
 
     def carregar_ultimos_status(self,fazenda:str, n=7):
         pipeline = [
@@ -37,7 +57,12 @@ class ProjecaoCrescimentoService:
             {"$project": {"status": 1}}
         ]
         resultados = list(self.historico_collection.aggregate(pipeline))
-        return [resultado['status'] for resultado in resultados]
+            
+        return [
+            resultado['status'] 
+            for resultado in resultados 
+            if 'status' in resultado
+        ]
 
     def buscar_status_mensal(self, mes: int, fazendaNome):
         ano = datetime.now().year
