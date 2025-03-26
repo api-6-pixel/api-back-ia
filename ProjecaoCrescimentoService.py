@@ -29,8 +29,9 @@ class ProjecaoCrescimentoService:
 	    "fazendaNome": entrada_diaria.Fazenda_Nome
         })
 
-    def carregar_ultimos_status(self, n=7):
+    def carregar_ultimos_status(self,fazenda:str, n=7):
         pipeline = [
+            {"$match": { "fazendaNome": fazenda }},
             {"$sort": {"data": -1}},
             {"$limit": n},
             {"$project": {"status": 1}}
@@ -38,7 +39,7 @@ class ProjecaoCrescimentoService:
         resultados = list(self.historico_collection.aggregate(pipeline))
         return [resultado['status'] for resultado in resultados]
 
-    def buscar_status_mensal(self, mes: int, fazendaNome: string):
+    def buscar_status_mensal(self, mes: int, fazendaNome):
         ano = datetime.now().year
 
         data_inicio = datetime(ano, mes, 1)
@@ -51,9 +52,6 @@ class ProjecaoCrescimentoService:
             "data": {
                 "$gte": data_inicio,
                 "$lt": data_fim
-            },
-	    "fazendaNome": {
-            	"$eq": fazendaNome
             }
         })
 

@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
 from typing import List, Dict
@@ -9,6 +10,15 @@ from ProjecaoCrescimentoService import ProjecaoCrescimentoService
 plant_service = ProjecaoCrescimentoService()
 app = FastAPI()
 
+# Configuração do CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Permite todas as origens
+    allow_credentials=True,
+    allow_methods=["*"],  # Permite todos os métodos (GET, POST, PUT, DELETE, etc.)
+    allow_headers=["*"],  # Permite todos os cabeçalhos
+)
+
 class EntradaDiaria(BaseModel):
     Soil_Moisture: float
     Ambient_Temperature: float
@@ -16,16 +26,14 @@ class EntradaDiaria(BaseModel):
     Humidity: float
     Light_Intensity: float
     Soil_pH: float
-    Fazenda_Nome: string
-    
 class ProjecaoCrescimento(BaseModel):
     meses_projecao: int
     teto_gastos: int
-    fazenda_nome: string
+    fazenda_nome: str
 
 class ConsultaMensal(BaseModel):
     mes: int
-    
+
 class DadosAtualizacao(BaseModel):
     umidadeSolo: float
     temperaturaAmbiente: float
@@ -33,8 +41,6 @@ class DadosAtualizacao(BaseModel):
     umidadeAmbiente: float
     indiceUV: float
     phSolo: float
-    fazendaNome: string
-    
 def mapear_para_entrada_diaria(atualizacao: DadosAtualizacao) -> EntradaDiaria:
     return EntradaDiaria(
         Soil_Moisture=atualizacao.umidadeSolo,
@@ -43,35 +49,34 @@ def mapear_para_entrada_diaria(atualizacao: DadosAtualizacao) -> EntradaDiaria:
         Humidity=atualizacao.umidadeAmbiente,
         Light_Intensity=atualizacao.indiceUV,
         Soil_pH=atualizacao.phSolo,
-	Fazenda_Nome: atualizacao.fazendaNome
+	    Fazenda_Nome= atualizacao.fazendaNome
     )
 
-
 @app.post("/incluir-atualizacao")
-def status_mensal(atualizacao: DadosAtualizacao):
+def incluir_atualizacao(atualizacao: DadosAtualizacao):
     try:
         entrada_diaria = mapear_para_entrada_diaria(atualizacao)
         status_hoje = plant_service.prever_status(entrada_diaria)
         plant_service.salvar_status(status_hoje, entrada_diaria)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
+
 @app.post("/projetar_crescimento/v1")
 def projetar_crescimento(dados: ProjecaoCrescimento):
     try:
-        ultimos_status = plant_service.carregar_ultimos_status(n=1)
+        ultimos_status = plant_service.carregar_ultimos_status(dados.fazenda_nome,n=1)
         if not ultimos_status:
             raise HTTPException(status_code=404, detail="Nenhum status encontrado no banco de dados.")
 
         status_hoje = ultimos_status[0]
         crescimento_hoje = plant_service.crescimento_medio.get(status_hoje, "Desconhecido")
 
-        ultimos_status = plant_service.carregar_ultimos_status(n=7)
+        ultimos_status = plant_service.carregar_ultimos_status(dados.fazenda_nome, n=7)
         if not ultimos_status:
-            crescimento_futuro = ["Indefinido"] * dados.meses_projecao
+            crescimento_futuro = ["Indefinido"] * dados.mess_projecao
         else:
             tendencia = plant_service.calcular_tendencia(ultimos_status)
-            crescimento_futuro = plant_service.projetar_crescimento_mensal(tendencia, dados.meses_projecao, dados.fazenda_nome)
+            crescimento_futuro = plant_service.projetar_crescimento_mensal(tendencia, dados.meses_projecao)
 
         meses_nomes = [calendar.month_name[(datetime.utcnow().month + i) % 12 or 12] for i in range(dados.meses_projecao)]
 
@@ -93,8 +98,8 @@ def projetar_crescimento(dados: ProjecaoCrescimento):
             "status_atual": crescimento_hoje,
             "meses": meses_nomes,
             "crescimento": crescimento_futuro,
-            "gastos_projetados": gastos_projetados, 
-            "teto_gastos": dados.teto_gastos 
+            "gastos_projetados": gastos_projetados,
+            "teto_gastos": dados.teto_gastos
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
