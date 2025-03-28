@@ -76,6 +76,10 @@ def incluir_atualizacao(atualizacao: DadosAtualizacao):
 @app.post("/projetar_crescimento/v1")
 def projetar_crescimento(dados: ProjecaoCrescimento):
     try:
+        cache = plant_service.obter_cache(dados)
+        if cache:
+            return cache['resultado']
+
         ultimos_status = plant_service.carregar_ultimos_status(dados.fazenda_nome,n=1)
         if not ultimos_status:
             return JSONResponse(status_code=400,
@@ -108,13 +112,17 @@ def projetar_crescimento(dados: ProjecaoCrescimento):
             gastos_projetados.append(total_gastos_acumulados)
             teto_gastos = plant_service.get_custo_fazenda(dados.fazenda_nome)["custo"]
             
-        return {
+        data = {
             "status_atual": crescimento_hoje,
             "meses": meses_nomes,
             "crescimento": crescimento_futuro,
             "gastos_projetados": gastos_projetados,
             "teto_gastos": teto_gastos
         }
+    
+        plant_service.salvar_cache(dados, data)
+        
+        return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

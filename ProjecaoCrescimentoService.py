@@ -22,6 +22,7 @@ class ProjecaoCrescimentoService:
         self.db = self.client.plantas_db
         self.historico_collection = self.db.historico
         self.custo_plantacao_collection = self.db.custo_plantacao
+        self.dashboard = self.db.dashboard
 
     def salvar_status(self, status, fazendaNome):
         self.historico_collection.insert_one({
@@ -45,6 +46,21 @@ class ProjecaoCrescimentoService:
             "data": datetime.utcnow(),
 	        "fazendaNome": fazendaNome
         })
+        
+    def salvar_cache(self, filtro, dados):
+        self.dashboard.insert_one({
+            "fazenda_nome": filtro.fazenda_nome,
+            "meses_projecao": filtro.meses_projecao,
+            "resultado": dict(dados)
+        })
+        return
+
+    def obter_cache(self, dados):
+        registros = self.dashboard.find_one({
+            "meses_projecao": dados.meses_projecao,
+            "fazenda_nome": dados.fazenda_nome,
+        })
+        return registros
         
     def get_custo_fazenda(self, fazendaNome):
         return self.custo_plantacao_collection.find_one({"fazendaNome": fazendaNome})
