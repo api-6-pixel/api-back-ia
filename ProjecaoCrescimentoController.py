@@ -18,9 +18,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"], 
-    allow_headers=["*"], 
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
 
 class EntradaDiaria(BaseModel):
     Soil_Moisture: float
@@ -29,13 +30,17 @@ class EntradaDiaria(BaseModel):
     Humidity: float
     Light_Intensity: float
     Soil_pH: float
-    
+
+
 class ProjecaoCrescimento(BaseModel):
     meses_projecao: int
     fazenda_nome: str
 
+
 class ConsultaMensal(BaseModel):
     mes: int
+    fazendaNome: str
+
 
 class DadosAtualizacao(BaseModel):
     fazendaNome: str
@@ -46,7 +51,8 @@ class DadosAtualizacao(BaseModel):
     indiceUV: float
     phSolo: float
     custoEsperado: Optional[float] = None
-    
+
+
 def mapear_para_entrada_diaria(atualizacao: DadosAtualizacao) -> EntradaDiaria:
     return EntradaDiaria(
         Soil_Moisture=atualizacao.umidadeSolo,
@@ -57,11 +63,13 @@ def mapear_para_entrada_diaria(atualizacao: DadosAtualizacao) -> EntradaDiaria:
         Soil_pH=atualizacao.phSolo
     )
 
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
 
 @app.post("/incluir-atualizacao")
 def incluir_atualizacao(atualizacao: DadosAtualizacao):
@@ -69,9 +77,11 @@ def incluir_atualizacao(atualizacao: DadosAtualizacao):
         entrada_diaria = mapear_para_entrada_diaria(atualizacao)
         status_hoje = plant_service.prever_status(entrada_diaria)
         plant_service.salvar_status(status_hoje, atualizacao.fazendaNome)
-        plant_service.salvar_custo(atualizacao.custoEsperado, atualizacao.fazendaNome)
+        plant_service.salvar_custo(
+            atualizacao.custoEsperado, atualizacao.fazendaNome)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/projetar_crescimento/v1")
 def projetar_crescimento(dados: ProjecaoCrescimento):
@@ -80,23 +90,27 @@ def projetar_crescimento(dados: ProjecaoCrescimento):
         if cache:
             return cache['resultado']
 
-        ultimos_status = plant_service.carregar_ultimos_status(dados.fazenda_nome,n=1)
+        ultimos_status = plant_service.carregar_ultimos_status(
+            dados.fazenda_nome, n=1)
         if not ultimos_status:
             return JSONResponse(status_code=400,
-                 content={"detail": f"Nenhuma fazenda encontrada para: {dados.fazenda_nome}."})
-            
+                                content={"detail": f"Nenhuma fazenda encontrada para: {dados.fazenda_nome}."})
+
         status_hoje = ultimos_status[0]
-        crescimento_hoje = plant_service.crescimento_medio.get(status_hoje, "Desconhecido")
-        
-        ultimos_status = plant_service.carregar_ultimos_status(dados.fazenda_nome, n=7)
+        crescimento_hoje = plant_service.crescimento_medio.get(
+            status_hoje, "Desconhecido")
+
+        ultimos_status = plant_service.carregar_ultimos_status(
+            dados.fazenda_nome, n=7)
         if not ultimos_status:
             crescimento_futuro = ["Indefinido"] * dados.meses_projecao
         else:
             tendencia = plant_service.calcular_tendencia(ultimos_status)
-            crescimento_futuro = plant_service.projetar_crescimento_mensal(tendencia, dados.meses_projecao)
-           
+            crescimento_futuro = plant_service.projetar_crescimento_mensal(
+                tendencia, dados.meses_projecao)
+
         meses_nomes = [f"Mês {i+1}" for i in range(dados.meses_projecao)]
-        
+
         gastos_projetados = []
         total_gastos_acumulados = 0
 
@@ -108,10 +122,11 @@ def projetar_crescimento(dados: ProjecaoCrescimento):
             else:
                 gasto_mensal = 15
 
-            total_gastos_acumulados += gasto_mensal 
+            total_gastos_acumulados += gasto_mensal
             gastos_projetados.append(total_gastos_acumulados)
-            teto_gastos = plant_service.get_custo_fazenda(dados.fazenda_nome)["custo"]
-            
+            teto_gastos = plant_service.get_custo_fazenda(dados.fazenda_nome)[
+                "custo"]
+
         data = {
             "status_atual": crescimento_hoje,
             "meses": meses_nomes,
@@ -119,17 +134,19 @@ def projetar_crescimento(dados: ProjecaoCrescimento):
             "gastos_projetados": gastos_projetados,
             "teto_gastos": teto_gastos
         }
-    
+
         plant_service.salvar_cache(dados, data)
-        
+
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.post("/status_mensal/v1")
 def status_mensal(consulta: ConsultaMensal):
     try:
-        status_mensal = plant_service.buscar_status_mensal(consulta.mes)
+        status_mensal = plant_service.buscar_status_mensal(
+            consulta.mes, consulta.fazendaNome)
         return status_mensal
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
