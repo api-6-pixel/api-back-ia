@@ -19,7 +19,7 @@ class ProjecaoCrescimentoService:
             'High Stress': 'Baixo'
         }
 
-        self.client = MongoClient('mongodb://localhost:27017/')
+        self.client = MongoClient('mongodb+srv://wjr0302:pixel@clustersecurity.vteryty.mongodb.net/security?retryWrites=true&w=majority&appName=ClusterSecurity')
         self.db = self.client.plantas_db
         self.historico_collection = self.db.historico
         self.custo_plantacao_collection = self.db.custo_plantacao
